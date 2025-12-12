@@ -1,9 +1,11 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { io } from 'socket.io-client';
-import axios from 'axios';
+import api from '../lib/api';
 import { useAuth } from './AuthContext';
 
 const NotificationContext = createContext(null);
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 export const useNotifications = () => {
     const context = useContext(NotificationContext);
@@ -26,7 +28,7 @@ export function NotificationProvider({ children }) {
         if (user) {
             const token = localStorage.getItem('token');
             if (token) {
-                const newSocket = io('http://localhost:5000', {
+                const newSocket = io(API_URL, {
                     auth: { token },
                     transports: ['websocket', 'polling']
                 });
@@ -79,8 +81,8 @@ export function NotificationProvider({ children }) {
         setLoading(true);
         try {
             const [notifRes, countRes] = await Promise.all([
-                axios.get('/api/notifications?limit=20'),
-                axios.get('/api/notifications/unread')
+                api.get('/api/notifications?limit=20'),
+                api.get('/api/notifications/unread')
             ]);
             setNotifications(notifRes.data.notifications || []);
             setUnreadCount(countRes.data.count || 0);
@@ -107,7 +109,7 @@ export function NotificationProvider({ children }) {
             );
             setUnreadCount(prev => Math.max(0, prev - 1));
 
-            await axios.post(`/api/notifications/${notificationId}/read`);
+            await api.post(`/api/notifications/${notificationId}/read`);
         } catch (error) {
             console.error('Error marking notification as read:', error);
             // Revert on error
@@ -122,7 +124,7 @@ export function NotificationProvider({ children }) {
             setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
             setUnreadCount(0);
 
-            await axios.post('/api/notifications/mark-read', { all: true });
+            await api.post('/api/notifications/mark-read', { all: true });
         } catch (error) {
             console.error('Error marking all as read:', error);
             fetchNotifications();
@@ -140,7 +142,7 @@ export function NotificationProvider({ children }) {
                 setUnreadCount(prev => Math.max(0, prev - 1));
             }
 
-            await axios.delete(`/api/notifications/${notificationId}`);
+            await api.delete(`/api/notifications/${notificationId}`);
         } catch (error) {
             console.error('Error deleting notification:', error);
             fetchNotifications();
@@ -152,7 +154,7 @@ export function NotificationProvider({ children }) {
         try {
             setNotifications([]);
             setUnreadCount(0);
-            await axios.delete('/api/notifications');
+            await api.delete('/api/notifications');
         } catch (error) {
             console.error('Error clearing notifications:', error);
             fetchNotifications();

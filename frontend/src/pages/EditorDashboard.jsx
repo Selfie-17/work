@@ -16,7 +16,7 @@ import {
     RefreshCw,
     File
 } from 'lucide-react';
-import axios from 'axios';
+import api from '../lib/api';
 import DiffViewer from '../components/DiffViewer';
 import MarkdownRenderer from '../components/MarkdownRenderer';
 import SyncScrollEditor from '../components/SyncScrollEditor';
@@ -50,9 +50,9 @@ export default function EditorDashboard() {
     const fetchData = async () => {
         try {
             const [filesRes, myFilesRes, editsRes] = await Promise.all([
-                axios.get('/api/files'),
-                axios.get('/api/files/my/files'),
-                axios.get('/api/edits/my')
+                api.get('/api/files'),
+                api.get('/api/files/my/files'),
+                api.get('/api/edits/my')
             ]);
             setFiles(filesRes.data);
             setMyFiles(myFilesRes.data);
@@ -118,7 +118,7 @@ export default function EditorDashboard() {
         setSaveStatus('saving');
 
         try {
-            const response = await axios.put(`/api/files/${currentFileId}/save`, {
+            const response = await api.put(`/api/files/${currentFileId}/save`, {
                 content: editContent,
                 name: editFileName
             });
@@ -153,7 +153,7 @@ export default function EditorDashboard() {
 
     const handleSendForApproval = async () => {
         try {
-            await axios.post('/api/edits', {
+            await api.post('/api/edits', {
                 fileId: selectedFile._id,
                 newContent: editContent
             });
@@ -171,7 +171,7 @@ export default function EditorDashboard() {
         if (!newFileName || !newFileContent) return;
 
         try {
-            const response = await axios.post('/api/files', {
+            const response = await api.post('/api/files', {
                 name: newFileName.endsWith('.md') ? newFileName : `${newFileName}.md`,
                 content: newFileContent
             });
