@@ -10,6 +10,7 @@ import {
     X
 } from 'lucide-react';
 import { useState } from 'react';
+import NotificationBell from './NotificationBell';
 
 export default function Layout({ children }) {
     const { user, logout } = useAuth();
@@ -52,8 +53,8 @@ export default function Layout({ children }) {
                                             key={item.name}
                                             to={item.href}
                                             className={`inline-flex items-center px-3 py-2 rounded-lg text-sm font-medium transition ${isActive
-                                                    ? 'bg-purple-100 text-purple-700'
-                                                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                                                ? 'bg-purple-100 text-purple-700'
+                                                : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                                                 }`}
                                         >
                                             <Icon className="w-4 h-4 mr-2" />
@@ -65,13 +66,16 @@ export default function Layout({ children }) {
                         </div>
 
                         <div className="flex items-center gap-4">
+                            {/* Notification Bell */}
+                            <NotificationBell />
+
                             <div className="hidden md:flex items-center gap-3">
                                 <div className="text-right">
                                     <p className="text-sm font-medium text-gray-900">{user?.name}</p>
                                     <p className="text-xs text-gray-500 capitalize">{user?.role}</p>
                                 </div>
                                 <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold ${user?.role === 'admin' ? 'bg-red-500' :
-                                        user?.role === 'editor' ? 'bg-blue-500' : 'bg-green-500'
+                                    user?.role === 'editor' ? 'bg-blue-500' : 'bg-green-500'
                                     }`}>
                                     {user?.name?.charAt(0).toUpperCase()}
                                 </div>
@@ -109,8 +113,8 @@ export default function Layout({ children }) {
                                         to={item.href}
                                         onClick={() => setMobileMenuOpen(false)}
                                         className={`flex items-center px-3 py-2 rounded-lg text-sm font-medium ${isActive
-                                                ? 'bg-purple-100 text-purple-700'
-                                                : 'text-gray-600 hover:bg-gray-100'
+                                            ? 'bg-purple-100 text-purple-700'
+                                            : 'text-gray-600 hover:bg-gray-100'
                                             }`}
                                     >
                                         <Icon className="w-4 h-4 mr-2" />

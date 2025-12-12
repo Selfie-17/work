@@ -2,6 +2,7 @@ import express from 'express';
 import Edit from '../models/Edit.js';
 import File from '../models/File.js';
 import { authenticate, authorize } from '../middleware/auth.js';
+import { createNotification, notifyAdmins, notifyViewers } from '../services/notificationService.js';
 
 const router = express.Router();
 
@@ -92,6 +93,21 @@ router.post('/', authenticate, authorize('editor', 'admin'), async (req, res) =>
         await edit.save();
         await edit.populate('file', 'name');
 
+        // Notify all admins about new submission
+        await notifyAdmins({
+            type: 'version_submitted',
+            actorId: req.user._id,
+            fileId: fileId,
+            editId: edit._id,
+            title: `New submission: ${file.name}`,
+            message: `${req.user.name} submitted changes for ${file.name}`,
+            meta: {
+                editorName: req.user.name,
+                fileName: file.name,
+                editId: edit._id.toString()
+            }
+        });
+
         res.status(201).json(edit);
     } catch (error) {
         console.error('Error submitting edit:', error);
@@ -129,6 +145,38 @@ router.post('/:id/approve', authenticate, authorize('admin'), async (req, res) =
         edit.reviewNotes = req.body.notes || '';
         await edit.save();
 
+        // Populate for notification
+        await edit.populate('editor', 'name');
+
+        // Notify the editor that their submission was approved
+        await createNotification({
+            userId: edit.editor._id,
+            type: 'version_approved',
+            actorId: req.user._id,
+            fileId: edit.file,
+            editId: edit._id,
+            title: `Approved: ${file.name}`,
+            message: `Your submission for ${file.name} was approved by ${req.user.name}`,
+            meta: {
+                adminName: req.user.name,
+                fileName: file.name,
+                editId: edit._id.toString()
+            }
+        });
+
+        // Notify viewers about published file
+        await notifyViewers({
+            type: 'file_published',
+            actorId: edit.editor._id,
+            fileId: edit.file,
+            title: `File updated: ${file.name}`,
+            message: `${file.name} has been updated`,
+            meta: {
+                fileName: file.name,
+                fileId: file._id.toString()
+            }
+        });
+
         res.json({ message: 'Edit approved and applied', edit });
     } catch (error) {
         console.error('Error approving edit:', error);
@@ -153,6 +201,29 @@ router.post('/:id/reject', authenticate, authorize('admin'), async (req, res) =>
         edit.reviewedAt = new Date();
         edit.reviewNotes = req.body.notes || '';
         await edit.save();
+
+        // Populate for notification
+        await edit.populate('file', 'name');
+        await edit.populate('editor', 'name');
+
+        // Notify the editor that their submission was rejected
+        await createNotification({
+            userId: edit.editor._id,
+            type: 'version_rejected',
+            actorId: req.user._id,
+            fileId: edit.file._id,
+            editId: edit._id,
+            title: `Changes requested: ${edit.file.name}`,
+            message: edit.reviewNotes
+                ? `${req.user.name} requested changes: "${edit.reviewNotes}"`
+                : `${req.user.name} requested changes for ${edit.file.name}`,
+            meta: {
+                adminName: req.user.name,
+                fileName: edit.file.name,
+                editId: edit._id.toString(),
+                notes: edit.reviewNotes
+            }
+        });
 
         res.json({ message: 'Edit rejected', edit });
     } catch (error) {
