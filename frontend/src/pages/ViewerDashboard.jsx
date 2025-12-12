@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { FileText, Search, Eye, Clock, User } from 'lucide-react';
+import { FileText, Search, Eye, Clock, User, AlertCircle } from 'lucide-react';
 import axios from 'axios';
 import MarkdownRenderer from '../components/MarkdownRenderer';
 
@@ -8,6 +8,7 @@ export default function ViewerDashboard() {
     const [selectedFile, setSelectedFile] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [loading, setLoading] = useState(true);
+    const [backendConnected, setBackendConnected] = useState(true);
 
     useEffect(() => {
         fetchFiles();
@@ -17,7 +18,9 @@ export default function ViewerDashboard() {
         try {
             const response = await axios.get('/api/files');
             setFiles(response.data);
+            setBackendConnected(true);
         } catch (error) {
+            setBackendConnected(false);
             // Demo data for testing without backend - comprehensive GitHub MD examples
             setFiles([
                 {
@@ -216,6 +219,25 @@ Create a new markdown file.
 
     return (
         <div className="space-y-6">
+            {/* Backend Not Connected Banner */}
+            {!backendConnected && (
+                <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-center gap-3">
+                    <div className="p-2 bg-red-100 rounded-full">
+                        <AlertCircle className="w-5 h-5 text-red-600" />
+                    </div>
+                    <div className="flex-1">
+                        <h4 className="font-semibold text-red-800">Backend Not Connected</h4>
+                        <p className="text-sm text-red-600">Unable to connect to the server. Showing demo data. Please ensure the backend server is running on port 5000.</p>
+                    </div>
+                    <button
+                        onClick={fetchFiles}
+                        className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition text-sm font-medium"
+                    >
+                        Retry
+                    </button>
+                </div>
+            )}
+
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900">Markdown Files</h1>

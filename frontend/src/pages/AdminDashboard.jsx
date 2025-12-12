@@ -14,17 +14,69 @@ import {
     ChevronUp,
     GitCompare,
     Edit,
-    Columns
+    Columns,
+    Trash2,
+    UserCog,
+    Save
 } from 'lucide-react';
 import axios from 'axios';
 import DiffViewer from '../components/DiffViewer';
 import MarkdownRenderer from '../components/MarkdownRenderer';
 
+// Demo data for fallback
+const demoUsers = [
+    { _id: 'u1', name: 'Admin User', email: 'admin@example.com', role: 'admin' },
+    { _id: 'u2', name: 'John Editor', email: 'john@example.com', role: 'editor' },
+    { _id: 'u3', name: 'Jane Editor', email: 'jane@example.com', role: 'editor' },
+    { _id: 'u4', name: 'Bob Viewer', email: 'bob@example.com', role: 'viewer' }
+];
+
+const demoEdits = [
+    {
+        _id: 'e1',
+        file: {
+            _id: '1',
+            name: 'README.md',
+            content: '# Welcome to MD Collab\n\nThis is a **collaborative markdown editing platform**.\n\n## Features\n\n- Role-based access control\n- Real-time markdown preview\n- GitHub-style diff viewer\n- Approval workflow'
+        },
+        editor: { name: 'John Editor', email: 'john@example.com' },
+        originalContent: '# Welcome to MD Collab\n\nThis is a **collaborative markdown editing platform**.\n\n## Features\n\n- Role-based access control\n- Real-time markdown preview\n- GitHub-style diff viewer\n- Approval workflow',
+        newContent: '# Welcome to MD Collab Platform\n\nThis is a **powerful collaborative markdown editing platform** for teams.\n\n## Features\n\n- Role-based access control (Admin, Editor, Viewer)\n- Real-time markdown preview\n- GitHub-style diff viewer\n- Approval workflow\n- File versioning\n\n## New Section\n\nThis is a newly added section!',
+        status: 'pending',
+        createdAt: new Date().toISOString()
+    },
+    {
+        _id: 'e2',
+        file: { _id: '2', name: 'CONTRIBUTING.md', content: '# Contributing\n\nWelcome!' },
+        editor: { name: 'Jane Editor', email: 'jane@example.com' },
+        originalContent: '# Contributing\n\nWelcome!',
+        newContent: '# Contributing Guide\n\nWelcome to our project!\n\n## How to Contribute\n\n1. Fork the repo\n2. Create a branch\n3. Submit a PR',
+        status: 'pending',
+        createdAt: new Date(Date.now() - 86400000).toISOString()
+    },
+    {
+        _id: 'e3',
+        file: { _id: '1', name: 'README.md', content: '' },
+        editor: { name: 'John Editor', email: 'john@example.com' },
+        originalContent: '# Old Title',
+        newContent: '# New Title',
+        status: 'approved',
+        reviewedAt: new Date(Date.now() - 172800000).toISOString(),
+        createdAt: new Date(Date.now() - 259200000).toISOString()
+    }
+];
+
+const demoFiles = [
+    { _id: '1', name: 'README.md', status: 'approved' },
+    { _id: '2', name: 'CONTRIBUTING.md', status: 'approved' },
+    { _id: '3', name: 'API.md', status: 'approved' }
+];
+
 export default function AdminDashboard() {
-    const [pendingEdits, setPendingEdits] = useState([]);
-    const [allEdits, setAllEdits] = useState([]);
-    const [users, setUsers] = useState([]);
-    const [files, setFiles] = useState([]);
+    const [pendingEdits, setPendingEdits] = useState(demoEdits.filter(e => e.status === 'pending'));
+    const [allEdits, setAllEdits] = useState(demoEdits);
+    const [users, setUsers] = useState(demoUsers);
+    const [files, setFiles] = useState(demoFiles);
     const [selectedEdit, setSelectedEdit] = useState(null);
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState('pending');
@@ -34,6 +86,13 @@ export default function AdminDashboard() {
     const [rejectNotes, setRejectNotes] = useState('');
     const [showRejectModal, setShowRejectModal] = useState(null);
     const [viewMode, setViewMode] = useState({}); // { editId: 'diff' | 'editor' }
+    const [backendConnected, setBackendConnected] = useState(true);
+
+    // User management states
+    const [editingUser, setEditingUser] = useState(null);
+    const [editUserData, setEditUserData] = useState({ name: '', email: '', role: '' });
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
+    const [userProcessing, setUserProcessing] = useState(null);
 
     useEffect(() => {
         fetchData();
@@ -46,63 +105,23 @@ export default function AdminDashboard() {
                 axios.get('/api/users'),
                 axios.get('/api/files')
             ]);
-            const allEditsData = editsRes.data;
+            const allEditsData = editsRes.data || [];
             setPendingEdits(allEditsData.filter(e => e.status === 'pending'));
             setAllEdits(allEditsData);
-            setUsers(usersRes.data);
-            setFiles(filesRes.data);
+            setUsers(usersRes.data || demoUsers);
+            setFiles(filesRes.data || demoFiles);
+            setBackendConnected(true);
         } catch (error) {
-            // Demo data
-            const demoEdits = [
-                {
-                    _id: 'e1',
-                    file: {
-                        _id: '1',
-                        name: 'README.md',
-                        content: '# Welcome to MD Collab\n\nThis is a **collaborative markdown editing platform**.\n\n## Features\n\n- Role-based access control\n- Real-time markdown preview\n- GitHub-style diff viewer\n- Approval workflow'
-                    },
-                    editor: { name: 'John Editor', email: 'john@example.com' },
-                    originalContent: '# Welcome to MD Collab\n\nThis is a **collaborative markdown editing platform**.\n\n## Features\n\n- Role-based access control\n- Real-time markdown preview\n- GitHub-style diff viewer\n- Approval workflow',
-                    newContent: '# Welcome to MD Collab Platform\n\nThis is a **powerful collaborative markdown editing platform** for teams.\n\n## Features\n\n- Role-based access control (Admin, Editor, Viewer)\n- Real-time markdown preview\n- GitHub-style diff viewer\n- Approval workflow\n- File versioning\n\n## New Section\n\nThis is a newly added section!',
-                    status: 'pending',
-                    createdAt: new Date().toISOString()
-                },
-                {
-                    _id: 'e2',
-                    file: { _id: '2', name: 'CONTRIBUTING.md', content: '# Contributing\n\nWelcome!' },
-                    editor: { name: 'Jane Editor', email: 'jane@example.com' },
-                    originalContent: '# Contributing\n\nWelcome!',
-                    newContent: '# Contributing Guide\n\nWelcome to our project!\n\n## How to Contribute\n\n1. Fork the repo\n2. Create a branch\n3. Submit a PR',
-                    status: 'pending',
-                    createdAt: new Date(Date.now() - 86400000).toISOString()
-                },
-                {
-                    _id: 'e3',
-                    file: { _id: '1', name: 'README.md', content: '' },
-                    editor: { name: 'John Editor', email: 'john@example.com' },
-                    originalContent: '# Old Title',
-                    newContent: '# New Title',
-                    status: 'approved',
-                    reviewedAt: new Date(Date.now() - 172800000).toISOString(),
-                    createdAt: new Date(Date.now() - 259200000).toISOString()
-                }
-            ];
-
+            console.log('API Error, using demo data:', error.message);
+            setBackendConnected(false);
+            // Use demo data on error
             setPendingEdits(demoEdits.filter(e => e.status === 'pending'));
             setAllEdits(demoEdits);
-            setUsers([
-                { _id: 'u1', name: 'Admin User', email: 'admin@example.com', role: 'admin' },
-                { _id: 'u2', name: 'John Editor', email: 'john@example.com', role: 'editor' },
-                { _id: 'u3', name: 'Jane Editor', email: 'jane@example.com', role: 'editor' },
-                { _id: 'u4', name: 'Bob Viewer', email: 'bob@example.com', role: 'viewer' }
-            ]);
-            setFiles([
-                { _id: '1', name: 'README.md', status: 'approved' },
-                { _id: '2', name: 'CONTRIBUTING.md', status: 'approved' },
-                { _id: '3', name: 'API.md', status: 'approved' }
-            ]);
+            setUsers(demoUsers);
+            setFiles(demoFiles);
+        } finally {
+            setLoading(false);
         }
-        setLoading(false);
     };
 
     const handleApprove = async (editId) => {
@@ -153,6 +172,50 @@ export default function AdminDashboard() {
             ...prev,
             [editId]: prev[editId] === 'editor' ? 'diff' : 'editor'
         }));
+    };
+
+    // User Management Functions
+    const startEditUser = (user) => {
+        setEditingUser(user._id);
+        setEditUserData({ name: user.name, email: user.email, role: user.role });
+    };
+
+    const cancelEditUser = () => {
+        setEditingUser(null);
+        setEditUserData({ name: '', email: '', role: '' });
+    };
+
+    const saveUserChanges = async (userId) => {
+        setUserProcessing(userId);
+        try {
+            await axios.put(`/api/users/${userId}`, editUserData);
+            setNotification({ type: 'success', message: 'User updated successfully!' });
+            fetchData();
+        } catch (error) {
+            // Demo mode
+            setUsers(prev => prev.map(u => u._id === userId ? { ...u, ...editUserData } : u));
+            setNotification({ type: 'success', message: 'User updated! (Demo mode)' });
+        }
+        setEditingUser(null);
+        setEditUserData({ name: '', email: '', role: '' });
+        setUserProcessing(null);
+        setTimeout(() => setNotification(null), 3000);
+    };
+
+    const deleteUser = async (userId) => {
+        setUserProcessing(userId);
+        try {
+            await axios.delete(`/api/users/${userId}`);
+            setNotification({ type: 'success', message: 'User deleted successfully!' });
+            fetchData();
+        } catch (error) {
+            // Demo mode
+            setUsers(prev => prev.filter(u => u._id !== userId));
+            setNotification({ type: 'success', message: 'User deleted! (Demo mode)' });
+        }
+        setShowDeleteConfirm(null);
+        setUserProcessing(null);
+        setTimeout(() => setNotification(null), 3000);
     };
 
     const getStatusBadge = (status) => {
@@ -215,6 +278,25 @@ export default function AdminDashboard() {
 
     return (
         <div className="space-y-6">
+            {/* Backend Not Connected Banner */}
+            {!backendConnected && (
+                <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-center gap-3">
+                    <div className="p-2 bg-red-100 rounded-full">
+                        <AlertCircle className="w-5 h-5 text-red-600" />
+                    </div>
+                    <div className="flex-1">
+                        <h4 className="font-semibold text-red-800">Backend Not Connected</h4>
+                        <p className="text-sm text-red-600">Unable to connect to the server. Showing demo data. Please ensure the backend server is running on port 5000.</p>
+                    </div>
+                    <button
+                        onClick={fetchData}
+                        className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition text-sm font-medium"
+                    >
+                        Retry
+                    </button>
+                </div>
+            )}
+
             {/* Notification Banner */}
             {notification && (
                 <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 animate-pulse ${notification.type === 'success' ? 'bg-green-500 text-white' : 'bg-blue-500 text-white'
@@ -348,6 +430,27 @@ export default function AdminDashboard() {
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-3">
+                                        {/* Quick Action Buttons in Header */}
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); openRejectModal(edit._id); }}
+                                            disabled={processing === edit._id}
+                                            className="px-3 py-1.5 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition flex items-center gap-1.5 text-sm font-medium disabled:opacity-50"
+                                        >
+                                            <X className="w-4 h-4" />
+                                            Reject
+                                        </button>
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); handleApprove(edit._id); }}
+                                            disabled={processing === edit._id}
+                                            className="px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center gap-1.5 text-sm font-medium disabled:opacity-50"
+                                        >
+                                            {processing === edit._id ? (
+                                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                            ) : (
+                                                <Check className="w-4 h-4" />
+                                            )}
+                                            Approve
+                                        </button>
                                         {getStatusBadge(edit.status)}
                                         {expandedEdit === edit._id ? (
                                             <ChevronUp className="w-5 h-5 text-gray-400" />
@@ -360,29 +463,54 @@ export default function AdminDashboard() {
                                 {/* Expanded Content */}
                                 {expandedEdit === edit._id && (
                                     <div className="border-t border-gray-200">
-                                        {/* View Mode Toggle */}
-                                        <div className="p-4 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
-                                            <h3 className="font-medium text-gray-700">Review Changes</h3>
-                                            <div className="flex items-center bg-gray-200 rounded-lg p-1">
-                                                <button
-                                                    onClick={(e) => { e.stopPropagation(); toggleViewMode(edit._id); }}
-                                                    className={`px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 transition ${getViewMode(edit._id) === 'diff'
+                                        {/* Sticky Action Bar with View Mode Toggle */}
+                                        <div className="p-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-purple-50 flex items-center justify-between sticky top-0 z-10">
+                                            <div className="flex items-center gap-4">
+                                                <h3 className="font-medium text-gray-700">Review Changes</h3>
+                                                <div className="flex items-center bg-gray-200 rounded-lg p-1">
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); toggleViewMode(edit._id); }}
+                                                        className={`px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 transition ${getViewMode(edit._id) === 'diff'
                                                             ? 'bg-white text-purple-700 shadow-sm'
                                                             : 'text-gray-600 hover:text-gray-800'
-                                                        }`}
+                                                            }`}
+                                                    >
+                                                        <GitCompare className="w-4 h-4" />
+                                                        Diff View
+                                                    </button>
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); toggleViewMode(edit._id); }}
+                                                        className={`px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 transition ${getViewMode(edit._id) === 'editor'
+                                                            ? 'bg-white text-purple-700 shadow-sm'
+                                                            : 'text-gray-600 hover:text-gray-800'
+                                                            }`}
+                                                    >
+                                                        <Columns className="w-4 h-4" />
+                                                        Editor & Preview
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            {/* Prominent Action Buttons */}
+                                            <div className="flex items-center gap-3">
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); openRejectModal(edit._id); }}
+                                                    disabled={processing === edit._id}
+                                                    className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition flex items-center gap-2 font-medium shadow-sm disabled:opacity-50"
                                                 >
-                                                    <GitCompare className="w-4 h-4" />
-                                                    Diff View
+                                                    <X className="w-4 h-4" />
+                                                    Reject
                                                 </button>
                                                 <button
-                                                    onClick={(e) => { e.stopPropagation(); toggleViewMode(edit._id); }}
-                                                    className={`px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 transition ${getViewMode(edit._id) === 'editor'
-                                                            ? 'bg-white text-purple-700 shadow-sm'
-                                                            : 'text-gray-600 hover:text-gray-800'
-                                                        }`}
+                                                    onClick={(e) => { e.stopPropagation(); handleApprove(edit._id); }}
+                                                    disabled={processing === edit._id}
+                                                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center gap-2 font-medium shadow-sm disabled:opacity-50"
                                                 >
-                                                    <Columns className="w-4 h-4" />
-                                                    Editor & Preview
+                                                    {processing === edit._id ? (
+                                                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                                    ) : (
+                                                        <Check className="w-4 h-4" />
+                                                    )}
+                                                    Approve & Apply
                                                 </button>
                                             </div>
                                         </div>
@@ -507,40 +635,224 @@ export default function AdminDashboard() {
             )}
 
             {activeTab === 'users' && (
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                    <table className="w-full">
-                        <thead className="bg-gray-50 border-b border-gray-200">
-                            <tr>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">User</th>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Role</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                            {users.map((user) => (
-                                <tr key={user._id} className="hover:bg-gray-50">
-                                    <td className="px-4 py-3">
-                                        <div className="flex items-center gap-3">
-                                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-semibold text-sm ${user.role === 'admin' ? 'bg-red-500' :
-                                                user.role === 'editor' ? 'bg-blue-500' : 'bg-green-500'
-                                                }`}>
-                                                {user.name.charAt(0)}
-                                            </div>
-                                            <span className="font-medium text-gray-900">{user.name}</span>
-                                        </div>
-                                    </td>
-                                    <td className="px-4 py-3 text-gray-600">{user.email}</td>
-                                    <td className="px-4 py-3">
-                                        <span className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${user.role === 'admin' ? 'bg-red-100 text-red-700' :
-                                            user.role === 'editor' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'
-                                            }`}>
-                                            {user.role}
-                                        </span>
-                                    </td>
+                <div className="space-y-4">
+                    {/* User Stats Summary */}
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-blue-100 rounded-lg">
+                                    <Users className="w-5 h-5 text-blue-600" />
+                                </div>
+                                <div>
+                                    <p className="text-2xl font-bold text-gray-900">{users?.length || 0}</p>
+                                    <p className="text-sm text-gray-500">Total Users</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-red-100 rounded-lg">
+                                    <UserCog className="w-5 h-5 text-red-600" />
+                                </div>
+                                <div>
+                                    <p className="text-2xl font-bold text-gray-900">{users?.filter(u => u?.role === 'admin').length || 0}</p>
+                                    <p className="text-sm text-gray-500">Admins</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-blue-100 rounded-lg">
+                                    <Edit className="w-5 h-5 text-blue-600" />
+                                </div>
+                                <div>
+                                    <p className="text-2xl font-bold text-gray-900">{users?.filter(u => u?.role === 'editor').length || 0}</p>
+                                    <p className="text-sm text-gray-500">Editors</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-green-100 rounded-lg">
+                                    <Eye className="w-5 h-5 text-green-600" />
+                                </div>
+                                <div>
+                                    <p className="text-2xl font-bold text-gray-900">{users?.filter(u => u?.role === 'viewer').length || 0}</p>
+                                    <p className="text-sm text-gray-500">Viewers</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Users Table */}
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                        <div className="p-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-blue-50">
+                            <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                                <Users className="w-5 h-5 text-blue-600" />
+                                User Management
+                            </h3>
+                            <p className="text-sm text-gray-500 mt-1">Manage user roles and permissions</p>
+                        </div>
+                        <table className="w-full">
+                            <thead className="bg-gray-50 border-b border-gray-200">
+                                <tr>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">User</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Role</th>
+                                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                                {!users || users.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={4} className="px-4 py-12 text-center">
+                                            <Users className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                                            <p className="text-gray-500 font-medium">No users found</p>
+                                            <p className="text-sm text-gray-400">Users will appear here once registered</p>
+                                        </td>
+                                    </tr>
+                                ) : users.map((user) => user && (
+                                    <tr key={user._id || Math.random()} className="hover:bg-gray-50">
+                                        <td className="px-4 py-3">
+                                            {editingUser === user._id ? (
+                                                <input
+                                                    type="text"
+                                                    value={editUserData.name}
+                                                    onChange={(e) => setEditUserData({ ...editUserData, name: e.target.value })}
+                                                    className="px-2 py-1 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 w-full max-w-xs"
+                                                />
+                                            ) : (
+                                                <div className="flex items-center gap-3">
+                                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-semibold text-sm ${user.role === 'admin' ? 'bg-red-500' :
+                                                        user.role === 'editor' ? 'bg-blue-500' : 'bg-green-500'
+                                                        }`}>
+                                                        {user.name ? user.name.charAt(0).toUpperCase() : '?'}
+                                                    </div>
+                                                    <span className="font-medium text-gray-900">{user.name || 'Unknown'}</span>
+                                                </div>
+                                            )}
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            {editingUser === user._id ? (
+                                                <input
+                                                    type="email"
+                                                    value={editUserData.email}
+                                                    onChange={(e) => setEditUserData({ ...editUserData, email: e.target.value })}
+                                                    className="px-2 py-1 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 w-full max-w-xs"
+                                                />
+                                            ) : (
+                                                <span className="text-gray-600">{user.email || 'No email'}</span>
+                                            )}
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            {editingUser === user._id ? (
+                                                <select
+                                                    value={editUserData.role}
+                                                    onChange={(e) => setEditUserData({ ...editUserData, role: e.target.value })}
+                                                    className="px-2 py-1 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                                >
+                                                    <option value="viewer">Viewer</option>
+                                                    <option value="editor">Editor</option>
+                                                    <option value="admin">Admin</option>
+                                                </select>
+                                            ) : (
+                                                <span className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${user?.role === 'admin' ? 'bg-red-100 text-red-700' :
+                                                    user?.role === 'editor' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'
+                                                    }`}>
+                                                    {user?.role || 'viewer'}
+                                                </span>
+                                            )}
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <div className="flex items-center justify-end gap-2">
+                                                {editingUser === user._id ? (
+                                                    <>
+                                                        <button
+                                                            onClick={() => saveUserChanges(user._id)}
+                                                            disabled={userProcessing === user._id}
+                                                            className="p-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition disabled:opacity-50"
+                                                            title="Save changes"
+                                                        >
+                                                            {userProcessing === user._id ? (
+                                                                <div className="w-4 h-4 border-2 border-green-700 border-t-transparent rounded-full animate-spin" />
+                                                            ) : (
+                                                                <Save className="w-4 h-4" />
+                                                            )}
+                                                        </button>
+                                                        <button
+                                                            onClick={cancelEditUser}
+                                                            className="p-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition"
+                                                            title="Cancel"
+                                                        >
+                                                            <X className="w-4 h-4" />
+                                                        </button>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <button
+                                                            onClick={() => startEditUser(user)}
+                                                            className="p-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition"
+                                                            title="Edit user"
+                                                        >
+                                                            <Edit className="w-4 h-4" />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => setShowDeleteConfirm(user._id)}
+                                                            className="p-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition"
+                                                            title="Delete user"
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </button>
+                                                    </>
+                                                )}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            )}
+
+            {/* Delete User Confirmation Modal */}
+            {showDeleteConfirm && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="p-3 bg-red-100 rounded-full">
+                                <Trash2 className="w-6 h-6 text-red-600" />
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-semibold text-gray-900">Delete User</h3>
+                                <p className="text-sm text-gray-500">This action cannot be undone</p>
+                            </div>
+                        </div>
+                        <p className="text-gray-600 mb-6">
+                            Are you sure you want to delete <span className="font-semibold">{users.find(u => u._id === showDeleteConfirm)?.name}</span>?
+                            All their data will be permanently removed.
+                        </p>
+                        <div className="flex justify-end gap-3">
+                            <button
+                                onClick={() => setShowDeleteConfirm(null)}
+                                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={() => deleteUser(showDeleteConfirm)}
+                                disabled={userProcessing === showDeleteConfirm}
+                                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition flex items-center gap-2 disabled:opacity-50"
+                            >
+                                {userProcessing === showDeleteConfirm ? (
+                                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                ) : (
+                                    <Trash2 className="w-4 h-4" />
+                                )}
+                                Delete User
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
 
@@ -548,12 +860,37 @@ export default function AdminDashboard() {
             {selectedEdit && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
                     <div className="bg-white rounded-2xl shadow-xl max-w-5xl w-full max-h-[90vh] overflow-hidden">
-                        <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+                        <div className="p-4 border-b border-gray-200 flex items-center justify-between bg-gradient-to-r from-white to-purple-50">
                             <div>
                                 <h2 className="font-semibold text-gray-900">{selectedEdit.file.name}</h2>
                                 <p className="text-sm text-gray-500">Edit by {selectedEdit.editor.name}</p>
                             </div>
                             <div className="flex items-center gap-3">
+                                {/* Prominent Action Buttons in Modal Header for Pending Edits */}
+                                {selectedEdit.status === 'pending' && (
+                                    <>
+                                        <button
+                                            onClick={() => openRejectModal(selectedEdit._id)}
+                                            disabled={processing === selectedEdit._id}
+                                            className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition flex items-center gap-2 font-medium shadow-sm disabled:opacity-50"
+                                        >
+                                            <X className="w-4 h-4" />
+                                            Reject
+                                        </button>
+                                        <button
+                                            onClick={() => handleApprove(selectedEdit._id)}
+                                            disabled={processing === selectedEdit._id}
+                                            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center gap-2 font-medium shadow-sm disabled:opacity-50"
+                                        >
+                                            {processing === selectedEdit._id ? (
+                                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                            ) : (
+                                                <Check className="w-4 h-4" />
+                                            )}
+                                            Approve
+                                        </button>
+                                    </>
+                                )}
                                 {getStatusBadge(selectedEdit.status)}
                                 <button
                                     onClick={() => setSelectedEdit(null)}
@@ -570,8 +907,8 @@ export default function AdminDashboard() {
                                 <button
                                     onClick={() => toggleViewMode(selectedEdit._id)}
                                     className={`px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 transition ${getViewMode(selectedEdit._id) === 'diff'
-                                            ? 'bg-white text-purple-700 shadow-sm'
-                                            : 'text-gray-600 hover:text-gray-800'
+                                        ? 'bg-white text-purple-700 shadow-sm'
+                                        : 'text-gray-600 hover:text-gray-800'
                                         }`}
                                 >
                                     <GitCompare className="w-4 h-4" />
@@ -580,8 +917,8 @@ export default function AdminDashboard() {
                                 <button
                                     onClick={() => toggleViewMode(selectedEdit._id)}
                                     className={`px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 transition ${getViewMode(selectedEdit._id) === 'editor'
-                                            ? 'bg-white text-purple-700 shadow-sm'
-                                            : 'text-gray-600 hover:text-gray-800'
+                                        ? 'bg-white text-purple-700 shadow-sm'
+                                        : 'text-gray-600 hover:text-gray-800'
                                         }`}
                                 >
                                     <Columns className="w-4 h-4" />

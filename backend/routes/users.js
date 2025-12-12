@@ -55,6 +55,41 @@ router.put('/:id/role', authenticate, authorize('admin'), async (req, res) => {
     }
 });
 
+// Update user details (admin only)
+router.put('/:id', authenticate, authorize('admin'), async (req, res) => {
+    try {
+        const { name, email, role } = req.body;
+
+        // Check if email is already taken by another user
+        if (email) {
+            const existingUser = await User.findOne({ email, _id: { $ne: req.params.id } });
+            if (existingUser) {
+                return res.status(400).json({ message: 'Email already in use' });
+            }
+        }
+
+        const updateData = {};
+        if (name) updateData.name = name;
+        if (email) updateData.email = email;
+        if (role && ['viewer', 'editor', 'admin'].includes(role)) updateData.role = role;
+
+        const user = await User.findByIdAndUpdate(
+            req.params.id,
+            updateData,
+            { new: true }
+        ).select('-password');
+
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        res.json(user);
+    } catch (error) {
+        console.error('Error updating user:', error);
+        res.status(500).json({ message: 'Failed to update user' });
+    }
+});
+
 // Delete user (admin only)
 router.delete('/:id', authenticate, authorize('admin'), async (req, res) => {
     try {

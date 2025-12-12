@@ -41,6 +41,7 @@ export default function EditorDashboard() {
     const [saveStatus, setSaveStatus] = useState(null); // 'saved', 'saving', 'error'
     const [activeTab, setActiveTab] = useState('myfiles');
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+    const [backendConnected, setBackendConnected] = useState(true);
 
     useEffect(() => {
         fetchData();
@@ -56,7 +57,9 @@ export default function EditorDashboard() {
             setFiles(filesRes.data);
             setMyFiles(myFilesRes.data);
             setMyEdits(editsRes.data);
+            setBackendConnected(true);
         } catch (error) {
+            setBackendConnected(false);
             // Demo data
             const demoFiles = [
                 {
@@ -575,6 +578,25 @@ export default function EditorDashboard() {
     // Main Dashboard
     return (
         <div className="space-y-6">
+            {/* Backend Not Connected Banner */}
+            {!backendConnected && (
+                <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-center gap-3">
+                    <div className="p-2 bg-red-100 rounded-full">
+                        <AlertCircle className="w-5 h-5 text-red-600" />
+                    </div>
+                    <div className="flex-1">
+                        <h4 className="font-semibold text-red-800">Backend Not Connected</h4>
+                        <p className="text-sm text-red-600">Unable to connect to the server. Showing demo data. Please ensure the backend server is running on port 5000.</p>
+                    </div>
+                    <button
+                        onClick={fetchData}
+                        className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition text-sm font-medium"
+                    >
+                        Retry
+                    </button>
+                </div>
+            )}
+
             {isOpenModalVisible && renderOpenModal()}
 
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -743,7 +765,7 @@ export default function EditorDashboard() {
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-3">
                                             <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${edit.status === 'approved' ? 'bg-green-100' :
-                                                    edit.status === 'rejected' ? 'bg-red-100' : 'bg-yellow-100'
+                                                edit.status === 'rejected' ? 'bg-red-100' : 'bg-yellow-100'
                                                 }`}>
                                                 {edit.status === 'approved' ? (
                                                     <CheckCircle className="w-5 h-5 text-green-600" />
