@@ -87,6 +87,52 @@ router.put('/:id', authenticate, authorize('admin'), async (req, res) => {
     }
 });
 
+// Save/update own file (editor can save their own files)
+router.put('/:id/save', authenticate, authorize('editor', 'admin'), async (req, res) => {
+    try {
+        const { content, name } = req.body;
+
+        const file = await File.findById(req.params.id);
+        if (!file) {
+            return res.status(404).json({ message: 'File not found' });
+        }
+
+        // Check if user is the author or admin
+        if (file.author.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+            return res.status(403).json({ message: 'You can only save your own files' });
+        }
+
+        // Add current version to history
+        file.versions.push({
+            content: file.content,
+            updatedBy: req.user._id
+        });
+
+        file.content = content;
+        if (name) file.name = name;
+        await file.save();
+        await file.populate('author', 'name email');
+
+        res.json(file);
+    } catch (error) {
+        console.error('Error saving file:', error);
+        res.status(500).json({ message: 'Failed to save file' });
+    }
+});
+
+// Get files created by current user
+router.get('/my/files', authenticate, async (req, res) => {
+    try {
+        const files = await File.find({ author: req.user._id })
+            .populate('author', 'name email')
+            .sort({ updatedAt: -1 });
+        res.json(files);
+    } catch (error) {
+        console.error('Error fetching my files:', error);
+        res.status(500).json({ message: 'Failed to fetch files' });
+    }
+});
+
 // Delete file (admin only)
 router.delete('/:id', authenticate, authorize('admin'), async (req, res) => {
     try {

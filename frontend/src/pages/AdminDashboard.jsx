@@ -11,10 +11,14 @@ import {
     Check,
     X,
     ChevronDown,
-    ChevronUp
+    ChevronUp,
+    GitCompare,
+    Edit,
+    Columns
 } from 'lucide-react';
 import axios from 'axios';
 import DiffViewer from '../components/DiffViewer';
+import MarkdownRenderer from '../components/MarkdownRenderer';
 
 export default function AdminDashboard() {
     const [pendingEdits, setPendingEdits] = useState([]);
@@ -25,6 +29,11 @@ export default function AdminDashboard() {
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState('pending');
     const [expandedEdit, setExpandedEdit] = useState(null);
+    const [processing, setProcessing] = useState(null);
+    const [notification, setNotification] = useState(null);
+    const [rejectNotes, setRejectNotes] = useState('');
+    const [showRejectModal, setShowRejectModal] = useState(null);
+    const [viewMode, setViewMode] = useState({}); // { editId: 'diff' | 'editor' }
 
     useEffect(() => {
         fetchData();
@@ -97,27 +106,53 @@ export default function AdminDashboard() {
     };
 
     const handleApprove = async (editId) => {
+        setProcessing(editId);
         try {
             await axios.post(`/api/edits/${editId}/approve`);
+            setNotification({ type: 'success', message: 'Edit approved and applied to file!' });
             fetchData();
         } catch (error) {
             // Demo mode
             setPendingEdits(prev => prev.filter(e => e._id !== editId));
-            setSelectedEdit(null);
-            alert('Edit approved! (Demo mode)');
+            setAllEdits(prev => prev.map(e => e._id === editId ? { ...e, status: 'approved', reviewedAt: new Date().toISOString() } : e));
+            setNotification({ type: 'success', message: 'Edit approved! (Demo mode)' });
         }
+        setSelectedEdit(null);
+        setProcessing(null);
+        setTimeout(() => setNotification(null), 3000);
     };
 
-    const handleReject = async (editId) => {
+    const handleReject = async (editId, notes = '') => {
+        setProcessing(editId);
         try {
-            await axios.post(`/api/edits/${editId}/reject`);
+            await axios.post(`/api/edits/${editId}/reject`, { notes });
+            setNotification({ type: 'info', message: 'Edit rejected.' });
             fetchData();
         } catch (error) {
             // Demo mode
             setPendingEdits(prev => prev.filter(e => e._id !== editId));
-            setSelectedEdit(null);
-            alert('Edit rejected! (Demo mode)');
+            setAllEdits(prev => prev.map(e => e._id === editId ? { ...e, status: 'rejected', reviewedAt: new Date().toISOString(), reviewNotes: notes } : e));
+            setNotification({ type: 'info', message: 'Edit rejected. (Demo mode)' });
         }
+        setSelectedEdit(null);
+        setShowRejectModal(null);
+        setRejectNotes('');
+        setProcessing(null);
+        setTimeout(() => setNotification(null), 3000);
+    };
+
+    const openRejectModal = (editId) => {
+        setShowRejectModal(editId);
+        setRejectNotes('');
+    };
+
+    const getViewMode = (editId) => viewMode[editId] || 'diff';
+
+    const toggleViewMode = (editId) => {
+        setViewMode(prev => ({
+            ...prev,
+            [editId]: prev[editId] === 'editor' ? 'diff' : 'editor'
+        }));
     };
 
     const getStatusBadge = (status) => {
@@ -180,6 +215,52 @@ export default function AdminDashboard() {
 
     return (
         <div className="space-y-6">
+            {/* Notification Banner */}
+            {notification && (
+                <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 animate-pulse ${notification.type === 'success' ? 'bg-green-500 text-white' : 'bg-blue-500 text-white'
+                    }`}>
+                    {notification.type === 'success' ? <CheckCircle className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
+                    {notification.message}
+                </div>
+            )}
+
+            {/* Reject Modal */}
+            {showRejectModal && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-4">Reject Edit</h3>
+                        <p className="text-sm text-gray-600 mb-4">Provide feedback to the editor (optional):</p>
+                        <textarea
+                            value={rejectNotes}
+                            onChange={(e) => setRejectNotes(e.target.value)}
+                            placeholder="Reason for rejection..."
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none"
+                            rows={3}
+                        />
+                        <div className="flex justify-end gap-3 mt-4">
+                            <button
+                                onClick={() => { setShowRejectModal(null); setRejectNotes(''); }}
+                                className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={() => handleReject(showRejectModal, rejectNotes)}
+                                disabled={processing === showRejectModal}
+                                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition flex items-center gap-2 disabled:opacity-50"
+                            >
+                                {processing === showRejectModal ? (
+                                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                ) : (
+                                    <X className="w-4 h-4" />
+                                )}
+                                Reject
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div>
                 <h1 className="text-2xl font-bold text-gray-900">Admin Dashboard</h1>
                 <p className="text-gray-500 mt-1">Review and approve edit requests</p>
@@ -279,31 +360,101 @@ export default function AdminDashboard() {
                                 {/* Expanded Content */}
                                 {expandedEdit === edit._id && (
                                     <div className="border-t border-gray-200">
-                                        {/* Diff Viewer */}
-                                        <div className="p-4">
-                                            <DiffViewer
-                                                oldContent={edit.originalContent}
-                                                newContent={edit.newContent}
-                                                oldTitle="Original Version"
-                                                newTitle="Proposed Changes"
-                                            />
+                                        {/* View Mode Toggle */}
+                                        <div className="p-4 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
+                                            <h3 className="font-medium text-gray-700">Review Changes</h3>
+                                            <div className="flex items-center bg-gray-200 rounded-lg p-1">
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); toggleViewMode(edit._id); }}
+                                                    className={`px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 transition ${getViewMode(edit._id) === 'diff'
+                                                            ? 'bg-white text-purple-700 shadow-sm'
+                                                            : 'text-gray-600 hover:text-gray-800'
+                                                        }`}
+                                                >
+                                                    <GitCompare className="w-4 h-4" />
+                                                    Diff View
+                                                </button>
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); toggleViewMode(edit._id); }}
+                                                    className={`px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 transition ${getViewMode(edit._id) === 'editor'
+                                                            ? 'bg-white text-purple-700 shadow-sm'
+                                                            : 'text-gray-600 hover:text-gray-800'
+                                                        }`}
+                                                >
+                                                    <Columns className="w-4 h-4" />
+                                                    Editor & Preview
+                                                </button>
+                                            </div>
                                         </div>
+
+                                        {/* Diff View */}
+                                        {getViewMode(edit._id) === 'diff' && (
+                                            <div className="p-4">
+                                                <DiffViewer
+                                                    oldContent={edit.originalContent}
+                                                    newContent={edit.newContent}
+                                                    oldTitle="Original Version"
+                                                    newTitle="Proposed Changes"
+                                                />
+                                            </div>
+                                        )}
+
+                                        {/* Editor & Preview View */}
+                                        {getViewMode(edit._id) === 'editor' && (
+                                            <div className="p-4">
+                                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                                    {/* Editor (Read-only) */}
+                                                    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                                                        <div className="p-3 border-b border-gray-200 bg-gray-50 flex items-center gap-2">
+                                                            <Edit className="w-4 h-4 text-purple-600" />
+                                                            <span className="font-medium text-gray-700 text-sm">Proposed Content</span>
+                                                            <span className="ml-auto text-xs text-gray-500 bg-gray-200 px-2 py-0.5 rounded">Read-only</span>
+                                                        </div>
+                                                        <textarea
+                                                            readOnly
+                                                            value={edit.newContent}
+                                                            className="w-full h-96 p-4 font-mono text-sm resize-none focus:outline-none bg-gray-50"
+                                                        />
+                                                    </div>
+                                                    {/* Preview */}
+                                                    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                                                        <div className="p-3 border-b border-gray-200 bg-gray-50 flex items-center gap-2">
+                                                            <Eye className="w-4 h-4 text-green-600" />
+                                                            <span className="font-medium text-gray-700 text-sm">Rendered Preview</span>
+                                                            <span className="ml-auto flex items-center gap-1 text-xs text-green-600">
+                                                                <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                                                                Live
+                                                            </span>
+                                                        </div>
+                                                        <div className="h-96 overflow-y-auto p-4">
+                                                            <MarkdownRenderer content={edit.newContent} />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
 
                                         {/* Actions */}
                                         <div className="p-4 bg-gray-50 border-t border-gray-200 flex justify-end gap-3">
                                             <button
-                                                onClick={() => handleReject(edit._id)}
-                                                className="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition flex items-center gap-2"
+                                                onClick={() => openRejectModal(edit._id)}
+                                                disabled={processing === edit._id}
+                                                className="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition flex items-center gap-2 disabled:opacity-50"
                                             >
                                                 <X className="w-4 h-4" />
                                                 Reject
                                             </button>
                                             <button
                                                 onClick={() => handleApprove(edit._id)}
-                                                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center gap-2"
+                                                disabled={processing === edit._id}
+                                                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center gap-2 disabled:opacity-50"
                                             >
-                                                <Check className="w-4 h-4" />
-                                                Approve & Finalize
+                                                {processing === edit._id ? (
+                                                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                                ) : (
+                                                    <Check className="w-4 h-4" />
+                                                )}
+                                                Approve & Apply
                                             </button>
                                         </div>
                                     </div>
@@ -396,7 +547,7 @@ export default function AdminDashboard() {
             {/* Edit Detail Modal */}
             {selectedEdit && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-2xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+                    <div className="bg-white rounded-2xl shadow-xl max-w-5xl w-full max-h-[90vh] overflow-hidden">
                         <div className="p-4 border-b border-gray-200 flex items-center justify-between">
                             <div>
                                 <h2 className="font-semibold text-gray-900">{selectedEdit.file.name}</h2>
@@ -412,28 +563,104 @@ export default function AdminDashboard() {
                                 </button>
                             </div>
                         </div>
-                        <div className="p-4 overflow-y-auto max-h-[70vh]">
-                            <DiffViewer
-                                oldContent={selectedEdit.originalContent}
-                                newContent={selectedEdit.newContent}
-                            />
+
+                        {/* View Mode Toggle for Modal */}
+                        <div className="p-3 border-b border-gray-200 bg-gray-50 flex items-center justify-center">
+                            <div className="flex items-center bg-gray-200 rounded-lg p-1">
+                                <button
+                                    onClick={() => toggleViewMode(selectedEdit._id)}
+                                    className={`px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 transition ${getViewMode(selectedEdit._id) === 'diff'
+                                            ? 'bg-white text-purple-700 shadow-sm'
+                                            : 'text-gray-600 hover:text-gray-800'
+                                        }`}
+                                >
+                                    <GitCompare className="w-4 h-4" />
+                                    Diff View
+                                </button>
+                                <button
+                                    onClick={() => toggleViewMode(selectedEdit._id)}
+                                    className={`px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 transition ${getViewMode(selectedEdit._id) === 'editor'
+                                            ? 'bg-white text-purple-700 shadow-sm'
+                                            : 'text-gray-600 hover:text-gray-800'
+                                        }`}
+                                >
+                                    <Columns className="w-4 h-4" />
+                                    Editor & Preview
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="p-4 overflow-y-auto max-h-[60vh]">
+                            {/* Diff View in Modal */}
+                            {getViewMode(selectedEdit._id) === 'diff' && (
+                                <DiffViewer
+                                    oldContent={selectedEdit.originalContent}
+                                    newContent={selectedEdit.newContent}
+                                />
+                            )}
+
+                            {/* Editor & Preview View in Modal */}
+                            {getViewMode(selectedEdit._id) === 'editor' && (
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                    {/* Editor (Read-only) */}
+                                    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                                        <div className="p-3 border-b border-gray-200 bg-gray-50 flex items-center gap-2">
+                                            <Edit className="w-4 h-4 text-purple-600" />
+                                            <span className="font-medium text-gray-700 text-sm">Proposed Content</span>
+                                            <span className="ml-auto text-xs text-gray-500 bg-gray-200 px-2 py-0.5 rounded">Read-only</span>
+                                        </div>
+                                        <textarea
+                                            readOnly
+                                            value={selectedEdit.newContent}
+                                            className="w-full h-80 p-4 font-mono text-sm resize-none focus:outline-none bg-gray-50"
+                                        />
+                                    </div>
+                                    {/* Preview */}
+                                    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                                        <div className="p-3 border-b border-gray-200 bg-gray-50 flex items-center gap-2">
+                                            <Eye className="w-4 h-4 text-green-600" />
+                                            <span className="font-medium text-gray-700 text-sm">Rendered Preview</span>
+                                            <span className="ml-auto flex items-center gap-1 text-xs text-green-600">
+                                                <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                                                Live
+                                            </span>
+                                        </div>
+                                        <div className="h-80 overflow-y-auto p-4">
+                                            <MarkdownRenderer content={selectedEdit.newContent} />
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                         {selectedEdit.status === 'pending' && (
                             <div className="p-4 border-t border-gray-200 flex justify-end gap-3">
                                 <button
-                                    onClick={() => handleReject(selectedEdit._id)}
-                                    className="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition flex items-center gap-2"
+                                    onClick={() => openRejectModal(selectedEdit._id)}
+                                    disabled={processing === selectedEdit._id}
+                                    className="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition flex items-center gap-2 disabled:opacity-50"
                                 >
                                     <X className="w-4 h-4" />
                                     Reject
                                 </button>
                                 <button
                                     onClick={() => handleApprove(selectedEdit._id)}
-                                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center gap-2"
+                                    disabled={processing === selectedEdit._id}
+                                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center gap-2 disabled:opacity-50"
                                 >
-                                    <Check className="w-4 h-4" />
-                                    Approve & Finalize
+                                    {processing === selectedEdit._id ? (
+                                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                    ) : (
+                                        <Check className="w-4 h-4" />
+                                    )}
+                                    Approve & Apply
                                 </button>
+                            </div>
+                        )}
+                        {selectedEdit.status !== 'pending' && selectedEdit.reviewNotes && (
+                            <div className="p-4 border-t border-gray-200 bg-gray-50">
+                                <p className="text-sm text-gray-600">
+                                    <span className="font-medium">Review Notes:</span> {selectedEdit.reviewNotes}
+                                </p>
                             </div>
                         )}
                     </div>
