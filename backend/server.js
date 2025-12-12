@@ -22,6 +22,7 @@ const allowedOrigins = [
     'http://localhost:3000',
     'http://localhost:3001',
     'http://localhost:5173',
+    'https://ornate-mooncake-326cbb.netlify.app',
     process.env.FRONTEND_URL
 ].filter(Boolean);
 
